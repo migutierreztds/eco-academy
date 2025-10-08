@@ -17,3 +17,12 @@ web-build/
 # Backups / temp
 _root_backup/
 
+
+node_modules/
+.expo/
+.expo-shared/
+_root_backup/
+eco-academy/
+.DS_Store
+.env
+
