@@ -15,8 +15,9 @@ import {
 import { Link, useRouter } from "expo-router";
 import { supabase } from "~/lib/supabase";
 
-// ✅ 1) Import statically so TS/Metro validate the path at compile time
-const logo = require("../../assets/icon.png"); // ← adjust to correct relative path if needed
+// ✅ Static import so Metro validates the path at build time
+// From app/(auth)/ -> up to /app -> up to project root -> /assets/icon.png
+const logo = require("../../assets/icon.png");
 
 export default function Login() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
+
   const canSubmit = useMemo(
     () => email.trim().length > 0 && password.length > 0,
     [email, password]
@@ -63,27 +65,17 @@ export default function Login() {
       behavior={Platform.select({ ios: "padding", android: undefined })}
       style={{ flex: 1 }}
     >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.container}
-      >
-        {/* ✅ 2) Logo with debug hooks */}
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+        {/* Logo */}
         <Image
           source={logo}
-          style={[styles.logo, { backgroundColor: "#eee" }]} // temp bg so you can see its box
+          style={styles.logo}
           accessibilityLabel="Eco Academy logo"
           onLoad={() => console.log("✅ Logo loaded")}
           onError={(e) => console.log("❌ Logo failed:", e.nativeEvent?.error)}
         />
 
-        {/* 🧪 3) Remote test image (to confirm Image renders at all) */}
-        <Image
-          source={{ uri: "https://via.placeholder.com/300x150.png" }}
-          style={{ width: 300, height: 150, alignSelf: "center", marginTop: 8 }}
-          onLoad={() => console.log("✅ Remote test image loaded")}
-          onError={(e) => console.log("❌ Remote image failed:", e.nativeEvent?.error)}
-        />
-
+        {/* Title */}
         <Text style={styles.heading}>Sign in</Text>
 
         {/* Email */}
@@ -143,12 +135,11 @@ export default function Login() {
 
         {/* Sign up */}
         <View style={styles.signupRow}>
-          <Text style={styles.muted}>Don’t have an account? </Text>
-          <Pressable onPress={signUp} disabled={!canSubmit || loading}>
-            <Text style={styles.signupLink}>Sign up</Text>
-          </Pressable>
-        </View>
+  <Text style={styles.muted}>Don’t have an account? </Text>
+  <Link href="/(auth)/signup" style={styles.signupLink}>Sign up</Link>
+</View>
 
+        {/* Dev skip link */}
         <Link href="/home" style={styles.skip}>
           Skip for now →
         </Link>
