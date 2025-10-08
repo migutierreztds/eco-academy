@@ -1,0 +1,226 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    /* ---------------------- EXPO: run & cache ---------------------- */
+    {
+      "label": "🚀 Expo: Start (clear cache)",
+      "type": "shell",
+      "command": "npx expo start --clear",
+      "problemMatcher": []
+    },
+    {
+      "label": "▶️ Expo: Start (normal)",
+      "type": "shell",
+      "command": "npx expo start",
+      "problemMatcher": []
+    },
+    {
+      "label": "📱 Expo: Run iOS (simulator)",
+      "type": "shell",
+      "command": "npx expo run:ios",
+      "problemMatcher": []
+    },
+    {
+      "label": "🤖 Expo: Run Android (device/emulator)",
+      "type": "shell",
+      "command": "npx expo run:android",
+      "problemMatcher": []
+    },
+    {
+      "label": "🧰 Expo: Prebuild (native projects)",
+      "type": "shell",
+      "command": "npx expo prebuild",
+      "problemMatcher": []
+    },
+    {
+      "label": "🩺 Expo: Doctor",
+      "type": "shell",
+      "command": "npx expo-doctor",
+      "problemMatcher": []
+    },
+
+    /* --------------------------- EAS build -------------------------- */
+    {
+      "label": "🏗️ EAS: Build Android (preview)",
+      "type": "shell",
+      "command": "eas build -p android --profile preview",
+      "problemMatcher": []
+    },
+    {
+      "label": "🏗️ EAS: Build iOS (preview)",
+      "type": "shell",
+      "command": "eas build -p ios --profile preview",
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 EAS: Build Android (production)",
+      "type": "shell",
+      "command": "eas build -p android --profile production",
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 EAS: Build iOS (production)",
+      "type": "shell",
+      "command": "eas build -p ios --profile production",
+      "problemMatcher": []
+    },
+    {
+      "label": "⤴️ EAS: Submit last build (Android)",
+      "type": "shell",
+      "command": "eas submit -p android",
+      "problemMatcher": []
+    },
+    {
+      "label": "⤴️ EAS: Submit last build (iOS)",
+      "type": "shell",
+      "command": "eas submit -p ios",
+      "problemMatcher": []
+    },
+
+    /* ---------------------------- NPM/Yarn -------------------------- */
+    {
+      "label": "🛠️ npm: Install",
+      "type": "shell",
+      "command": "npm install",
+      "problemMatcher": []
+    },
+    {
+      "label": "🧹 npm: Clean install",
+      "type": "shell",
+      "command": "rm -rf node_modules package-lock.json && npm install",
+      "problemMatcher": [],
+      "detail": "Mac/Linux. On Windows, replace with: rmdir /s /q node_modules && del package-lock.json"
+    },
+    {
+      "label": "🧪 npm: Test",
+      "type": "shell",
+      "command": "npm test",
+      "problemMatcher": []
+    },
+    {
+      "label": "🔍 npm: Lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "problemMatcher": []
+    },
+    {
+      "label": "🧽 npm: Lint (fix)",
+      "type": "shell",
+      "command": "npm run lint:fix",
+      "problemMatcher": []
+    },
+    {
+      "label": "🏗️ npm: Build",
+      "type": "shell",
+      "command": "npm run build",
+      "problemMatcher": []
+    },
+
+    /* ------------------------------ Git ---------------------------- */
+    {
+      "label": "⬇️ Git: Pull",
+      "type": "shell",
+      "command": "git pull",
+      "problemMatcher": []
+    },
+    {
+      "label": "⬆️ Git: Push",
+      "type": "shell",
+      "command": "git push",
+      "problemMatcher": []
+    },
+    {
+      "label": "💾 Git: Commit (quick)",
+      "type": "shell",
+      "command": "git add -A && git commit -m \"${input:commitMessage}\" && git status",
+      "problemMatcher": []
+    },
+    {
+      "label": "🌿 Git: Create & checkout branch",
+      "type": "shell",
+      "command": "git checkout -b ${input:branchName}",
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 Git: Stash (save)",
+      "type": "shell",
+      "command": "git stash push -u -m \"${input:stashMessage}\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "📤 Git: Stash (pop)",
+      "type": "shell",
+      "command": "git stash pop",
+      "problemMatcher": []
+    },
+
+    /* -------------------------- Dev conveniences ------------------- */
+    {
+      "label": "🧼 Reset Metro/Watchman cache (macOS)",
+      "type": "shell",
+      "command": "watchman watch-del-all || true; rm -rf $TMPDIR/metro-* $TMPDIR/haste-map-* node_modules/.cache; npx expo start --clear",
+      "problemMatcher": [],
+      "detail": "Safe to run even if watchman not installed."
+    },
+    {
+      "label": "🧯 Kill Expo/Metro on port 8081 (macOS)",
+      "type": "shell",
+      "command": "lsof -ti tcp:8081 | xargs kill -9 || true",
+      "problemMatcher": []
+    },
+
+    /* ---------------------- Compound (multi-step) ------------------- */
+    {
+      "label": "🧹 Clean & Reinstall → Expo (clear)",
+      "dependsOn": ["🧹 npm: Clean install", "🚀 Expo: Start (clear cache)"],
+      "problemMatcher": []
+    },
+
+    /* --------------------------- Tunnel Tasks ----------------------- */
+    {
+      "label": "🚇 Expo: Start (tunnel)",
+      "type": "shell",
+      "command": "npx expo start --tunnel",
+      "problemMatcher": []
+    },
+    {
+      "label": "🚇🧹 Expo: Start (tunnel + clear)",
+      "type": "shell",
+      "command": "npx expo start --tunnel --clear",
+      "problemMatcher": []
+    },
+    {
+      "label": "🚇📱 Expo: Start (tunnel + iOS)",
+      "type": "shell",
+      "command": "npx expo start --tunnel --ios",
+      "problemMatcher": []
+    },
+    {
+      "label": "🚇🤖 Expo: Start (tunnel + Android)",
+      "type": "shell",
+      "command": "npx expo start --tunnel --android",
+      "problemMatcher": []
+    }
+  ],
+
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "type": "promptString",
+      "description": "Commit message",
+      "default": "chore: update"
+    },
+    {
+      "id": "branchName",
+      "type": "promptString",
+      "description": "New branch name",
+      "default": "feature/quick-task"
+    },
+    {
+      "id": "stashMessage",
+      "type": "promptString",
+      "description": "Stash message",
+      "default": "WIP"
+    }
+  ]
+}

@@ -1,46 +1,246 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Alert, StyleSheet } from 'react-native';
-import { supabase } from '~/lib/supabase';
-import { Link } from 'expo-router';
+// app/(auth)/login.tsx
+import React, { useMemo, useState } from "react";
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Link, useRouter } from "expo-router";
+import { supabase } from "~/lib/supabase";
+
+// ✅ 1) Import statically so TS/Metro validate the path at compile time
+const logo = require("../../assets/icon.png"); // ← adjust to correct relative path if needed
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
+  const canSubmit = useMemo(
+    () => email.trim().length > 0 && password.length > 0,
+    [email, password]
+  );
 
   const signIn = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) Alert.alert('Login failed', error.message);
+    if (!canSubmit || loading) return;
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      router.replace("/home");
+    } catch (err: any) {
+      Alert.alert("Login failed", err?.message ?? "Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) Alert.alert('Sign up failed', error.message);
-    else Alert.alert('Check your email to confirm your account.');
+    if (!canSubmit || loading) return;
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      Alert.alert("Check your email", "Confirm your account to finish signing up.");
+    } catch (err: any) {
+      Alert.alert("Sign up failed", err?.message ?? "Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Eco Academy</Text>
-      <TextInput placeholder="Email" style={styles.input} autoCapitalize='none' onChangeText={setEmail} />
-      <TextInput placeholder="Password" style={styles.input} secureTextEntry onChangeText={setPassword} />
-      <Pressable onPress={signIn} style={styles.btn} disabled={loading}><Text style={styles.btnTxt}>{loading ? '...' : 'Sign In'}</Text></Pressable>
-      <Pressable onPress={signUp} style={[styles.btn, styles.outline]} disabled={loading}><Text style={[styles.btnTxt, styles.outlineTxt]}>Create account</Text></Pressable>
-      <Link href="/(tabs)/library">Skip for now →</Link>
-    </View>
+    <KeyboardAvoidingView
+      behavior={Platform.select({ ios: "padding", android: undefined })}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.container}
+      >
+        {/* ✅ 2) Logo with debug hooks */}
+        <Image
+          source={logo}
+          style={[styles.logo, { backgroundColor: "#eee" }]} // temp bg so you can see its box
+          accessibilityLabel="Eco Academy logo"
+          onLoad={() => console.log("✅ Logo loaded")}
+          onError={(e) => console.log("❌ Logo failed:", e.nativeEvent?.error)}
+        />
+
+        {/* 🧪 3) Remote test image (to confirm Image renders at all) */}
+        <Image
+          source={{ uri: "https://via.placeholder.com/300x150.png" }}
+          style={{ width: 300, height: 150, alignSelf: "center", marginTop: 8 }}
+          onLoad={() => console.log("✅ Remote test image loaded")}
+          onError={(e) => console.log("❌ Remote image failed:", e.nativeEvent?.error)}
+        />
+
+        <Text style={styles.heading}>Sign in</Text>
+
+        {/* Email */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            placeholder="Enter your email"
+            style={styles.input}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            value={email}
+            onChangeText={setEmail}
+            returnKeyType="next"
+          />
+        </View>
+
+        {/* Password */}
+        <View style={styles.field}>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Password</Text>
+            <Link href="/(auth)/forgot" style={styles.forgotLink}>
+              Forgot password?
+            </Link>
+          </View>
+          <View style={styles.passwordRow}>
+            <TextInput
+              placeholder="Enter your password"
+              style={[styles.input, { flex: 1, marginRight: 8 }]}
+              secureTextEntry={secure}
+              textContentType="password"
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="done"
+              onSubmitEditing={signIn}
+            />
+            <Pressable
+              onPress={() => setSecure((s) => !s)}
+              accessibilityRole="button"
+              accessibilityLabel={secure ? "Show password" : "Hide password"}
+              style={styles.eyeBtn}
+            >
+              <Text style={styles.eyeTxt}>{secure ? "👁️" : "🙈"}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Sign in */}
+        <Pressable
+          onPress={signIn}
+          disabled={!canSubmit || loading}
+          style={[styles.primaryBtn, (!canSubmit || loading) && styles.btnDisabled]}
+        >
+          <Text style={styles.primaryBtnTxt}>{loading ? "Signing in…" : "Sign in"}</Text>
+        </Pressable>
+
+        {/* Sign up */}
+        <View style={styles.signupRow}>
+          <Text style={styles.muted}>Don’t have an account? </Text>
+          <Pressable onPress={signUp} disabled={!canSubmit || loading}>
+            <Text style={styles.signupLink}>Sign up</Text>
+          </Pressable>
+        </View>
+
+        <Link href="/home" style={styles.skip}>
+          Skip for now →
+        </Link>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
+const COLORS = {
+  text: "#0B2A4A",
+  label: "#0B2A4A",
+  border: "#E5E7EB",
+  inputBg: "#FFFFFF",
+  primary: "#F5B016",
+  primaryTxt: "#112031",
+  brandGreen: "#18A35B",
+  link: "#0B5CCC",
+  muted: "#6B7280",
+  card: "#FFFFFF",
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 12 },
-  btn: { backgroundColor: '#16a34a', padding: 14, borderRadius: 12, alignItems: 'center' },
-  btnTxt: { color: 'white', fontWeight: '700' },
-  outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#16a34a' },
-  outlineTxt: { color: '#16a34a' }
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40,
+    justifyContent: "center",
+    gap: 16,
+    backgroundColor: "#FFFFFF",
+  },
+  logo: {
+    width: 250,
+    height: 132,
+    resizeMode: "contain",
+    alignSelf: "center",
+    marginBottom: 6,
+  },
+  heading: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "800",
+    color: COLORS.text,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  field: { gap: 8 },
+  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  label: { fontSize: 15, fontWeight: "700", color: COLORS.label },
+  forgotLink: { fontSize: 14, color: COLORS.link, fontWeight: "600" },
+  input: {
+    backgroundColor: COLORS.inputBg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+  passwordRow: { flexDirection: "row", alignItems: "center" },
+  eyeBtn: {
+    height: 48,
+    width: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.card,
+  },
+  eyeTxt: { fontSize: 18 },
+  primaryBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  btnDisabled: { opacity: 0.55 },
+  primaryBtnTxt: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  signupRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  muted: { color: COLORS.muted, fontSize: 14 },
+  signupLink: { color: COLORS.link, fontSize: 16, fontWeight: "700" },
+  skip: { marginTop: 12, alignSelf: "center", color: COLORS.muted, textDecorationLine: "underline" },
 });
