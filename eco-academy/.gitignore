@@ -1,15 +1,19 @@
-# Node / Expo
+# Expo / React Native
 node_modules/
 .expo/
 .expo-shared/
 dist/
 web-build/
 
-# OS cruft
+# OS / system files
 .DS_Store
 
-# Env
+# Env / private keys
 .env
+.env.local
+.env.production
+.env.development
 
 # Backups / temp
 _root_backup/
+
