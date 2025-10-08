@@ -1,5 +1,6 @@
 'use client';
 
+// eslint-disable-next-line @react-native/no-deep-imports
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
 
 // TODO: Report issue on RN repo, that nesting color value inside a struct does not work.
