@@ -1,17 +1,23 @@
 // app/_layout.tsx
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ contentStyle: { backgroundColor: "#FFFFFF" } }}>
-        {/* Hide the parent header for the tab group so "(tabs)" never shows */}
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        {/* If you have an auth group, keep it hidden too */}
-        {/* <Stack.Screen name="(auth)" options={{ headerShown: false }} /> */}
-      </Stack>
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Auth group (login, etc.) */}
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+
+      {/* Tabs group */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+      {/* Quiz segment (all routes under /quiz) */}
+      <Stack.Screen
+        name="quiz"
+        options={{
+          headerShown: false,      // <- hides the native header for /quiz/*
+          presentation: "card",
+        }}
+      />
+    </Stack>
   );
 }

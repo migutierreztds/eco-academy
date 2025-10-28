@@ -17,45 +17,45 @@ import {
   Platform,
 } from "react-native";
 import { supabase } from "~/lib/supabase";
-// Charts
 import { StackedBarChart, LineChart } from "../../components/Charts";
 
-// safe number parser
+// --------- helpers ----------
 const num = (v: any) => {
-  const n =
-    typeof v === "number"
-      ? v
-      : parseFloat(String(v ?? "").replace(/,/g, ""));
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(/,/g, ""));
   return Number.isFinite(n) ? n : 0;
 };
-const monthKey = (y: number, m: number) =>
-  `${y}-${String(m).padStart(2, "0")}`;
-
-// "YYYY-MM" -> "Sep 2025"
+const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
 function formatMonthLabel(key: string): string {
   const [y, m] = key.split("-");
   const date = new Date(Number(y), Number(m) - 1);
   return date.toLocaleString("en-US", { month: "short", year: "numeric" });
 }
+async function getProfileDistrictSchool(): Promise<{district?: string; school?: string}> {
+  const { data: u } = await supabase.auth.getUser();
+  const user = u?.user;
+  if (!user) return {};
+  const { data: prof, error } = await supabase
+    .from("profiles")
+    .select("district, school")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return { district: prof?.district ?? undefined, school: prof?.school ?? undefined };
+}
 
+// --------- types ----------
 type Row = {
-  MONTH: string;
-  YEAR: string;
-  DISTRICT: string;
-  NUMBER: string;
-  SCHOOL: string;
-  ENROLLMENT: string;
-  RECYCLE: string;
-  COMPOST: string;
-  COMBINED?: string;
+  MONTH: string; YEAR: string; DISTRICT: string; NUMBER: string; SCHOOL: string;
+  ENROLLMENT: string; RECYCLE: string; COMPOST: string; COMBINED?: string;
   ["POUNDS/STUDENT"]?: string;
-  created_at?: string;
 };
 
 export default function WasteDiversion() {
   const nav = useNavigation();
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errText, setErrText] = useState<string | null>(null);
 
   // UI state
   const [districtModal, setDistrictModal] = useState(false);
@@ -66,31 +66,39 @@ export default function WasteDiversion() {
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
 
-  // 🟦 Dynamic header subtitle
+  // dynamic header subtitle
   const headerSubtitle = useMemo(() => {
-    if (selectedSchool && selectedDistrict) {
-      return `${selectedSchool} • ${selectedDistrict}`;
-    }
+    if (selectedSchool && selectedDistrict) return `${selectedSchool} • ${selectedDistrict}`;
     if (selectedDistrict) return selectedDistrict;
     return undefined;
   }, [selectedDistrict, selectedSchool]);
 
-  // 🟦 Mount header once and update when subtitle changes
   useEffect(() => {
     nav.setOptions?.({
-      header: () => (
-        <AppHeader
-          title="Waste Diversion"
-          subtitle={headerSubtitle}
-        />
-      ),
+      header: () => <AppHeader title="Waste Diversion" subtitle={headerSubtitle} />,
     });
   }, [nav, headerSubtitle]);
 
+  // --------- load data + preselect ----------
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
+        setErrText(null);
         setLoading(true);
+
+        // 1) read profile (best-effort; don’t fail the screen if this errors)
+        let profileDistrict: string | undefined;
+        let profileSchool: string | undefined;
+        try {
+          const prefs = await getProfileDistrictSchool();
+          profileDistrict = prefs.district;
+          profileSchool = prefs.school ?? undefined;
+        } catch (e: any) {
+          console.warn("profile read warning:", e?.message ?? e);
+        }
+
+        // 2) read diversion rows (this is the critical call that RLS can block)
         const { data, error } = await supabase
           .from("stg_diversion_csv")
           .select("*")
@@ -98,56 +106,72 @@ export default function WasteDiversion() {
           .order("SCHOOL", { ascending: true })
           .order("YEAR", { ascending: true })
           .order("MONTH", { ascending: true });
-        if (error) throw error;
+
+        if (error) {
+          throw new Error(`stg_diversion_csv select: ${error.message}`);
+        }
+
         const r = (data ?? []) as Row[];
+        if (cancelled) return;
+
         setRows(r);
-        // preselect first available
-        if (r[0]?.DISTRICT) setSelectedDistrict(r[0].DISTRICT);
-        if (r[0]?.SCHOOL) setSelectedSchool(r[0].SCHOOL);
+
+        // distinct districts
+        const dists = Array.from(new Set(r.map(x => x.DISTRICT).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+
+        // choose district: prefer profile if present in data, else first available (or null)
+        const chosenDistrict = profileDistrict && dists.includes(profileDistrict)
+          ? profileDistrict
+          : dists[0] ?? null;
+
+        // choose school for chosen district (prefer profile if present)
+        let chosenSchool: string | null = null;
+        if (chosenDistrict) {
+          const schools = Array.from(
+            new Set(r.filter(x => x.DISTRICT === chosenDistrict).map(x => x.SCHOOL).filter(Boolean))
+          ).sort((a,b)=>a.localeCompare(b));
+          chosenSchool = profileSchool && schools.includes(profileSchool) ? profileSchool : (schools[0] ?? null);
+        }
+
+        setSelectedDistrict(chosenDistrict);
+        setSelectedSchool(chosenSchool);
       } catch (e: any) {
         console.error(e);
-        Alert.alert("Load error", e?.message ?? "Failed to load diversion data.");
+        setErrText(e?.message ?? "Failed to load diversion data.");
+        // don’t Alert on web; we render the error inline instead
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
-  // distinct lists
+  // --------- derived collections ----------
   const districts = useMemo(() => {
     const s = new Set<string>();
     rows.forEach((r) => r.DISTRICT && s.add(r.DISTRICT));
-    return [...s].sort((a, b) => a.localeCompare(b));
+    return [...s].sort((a,b)=>a.localeCompare(b));
   }, [rows]);
 
   const schoolsInDistrict = useMemo(() => {
     if (!selectedDistrict) return [];
     const s = new Set<string>();
-    rows.forEach((r) => {
-      if (r.DISTRICT === selectedDistrict) s.add(r.SCHOOL);
-    });
-    return [...s].sort((a, b) => a.localeCompare(b));
+    rows.forEach((r) => { if (r.DISTRICT === selectedDistrict) s.add(r.SCHOOL); });
+    return [...s].sort((a,b)=>a.localeCompare(b));
   }, [rows, selectedDistrict]);
 
   const schoolRows = useMemo(() => {
     if (!selectedDistrict || !selectedSchool) return [];
-    return rows.filter(
-      (r) => r.DISTRICT === selectedDistrict && r.SCHOOL === selectedSchool
-    );
+    return rows.filter((r) => r.DISTRICT === selectedDistrict && r.SCHOOL === selectedSchool);
   }, [rows, selectedDistrict, selectedSchool]);
 
-  // latest enrollment from last row
   const enrollment = useMemo(() => {
     if (schoolRows.length === 0) return 0;
     return num(schoolRows[schoolRows.length - 1].ENROLLMENT);
   }, [schoolRows]);
 
-  // monthly aggregate for selected school
   const monthly = useMemo(() => {
-    const map = new Map<
-      string,
-      { year: number; month: number; recycle: number; compost: number; diverted: number }
-    >();
+    const map = new Map<string, { year:number; month:number; recycle:number; compost:number; diverted:number }>();
     for (const r of schoolRows) {
       const y = num(r.YEAR);
       const m = num(r.MONTH);
@@ -155,56 +179,48 @@ export default function WasteDiversion() {
       const recycle = num(r.RECYCLE);
       const compost = num(r.COMPOST);
       const diverted = recycle + compost;
-      if (!map.has(key))
-        map.set(key, { year: y, month: m, recycle: 0, compost: 0, diverted: 0 });
+      if (!map.has(key)) map.set(key, { year:y, month:m, recycle:0, compost:0, diverted:0 });
       const row = map.get(key)!;
-      row.recycle += recycle;
-      row.compost += compost;
-      row.diverted += diverted;
+      row.recycle += recycle; row.compost += compost; row.diverted += diverted;
     }
     return [...map.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .sort(([a],[b]) => (a < b ? -1 : 1))
       .map(([key, v]) => ({ key, ...v }));
   }, [schoolRows]);
 
-  // memoized max for the list bars
-  const maxDiverted = useMemo(
-    () => Math.max(1, ...monthly.map((m) => m.diverted)),
-    [monthly]
-  );
+  const maxDiverted = useMemo(() => Math.max(1, ...monthly.map(m => m.diverted)), [monthly]);
 
-  // KPIs
   const kpis = useMemo(() => {
-    const totalRecycle = monthly.reduce((s, r) => s + r.recycle, 0);
-    const totalCompost = monthly.reduce((s, r) => s + r.compost, 0);
+    const totalRecycle = monthly.reduce((s,r)=>s+r.recycle,0);
+    const totalCompost = monthly.reduce((s,r)=>s+r.compost,0);
     const totalDiverted = totalRecycle + totalCompost;
     const perStudent = enrollment > 0 ? totalDiverted / enrollment : 0;
     return { totalRecycle, totalCompost, totalDiverted, perStudent, enrollment };
   }, [monthly, enrollment]);
 
-  // Chart data = monthly
   const chartData = monthly;
 
+  // --------- UI ----------
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* (Removed in-page H1/subtitle — header handles title/subtitle) */}
+      {/* error banner */}
+      {!!errText && (
+        <View style={styles.errBox}>
+          <Text style={styles.errTitle}>Error</Text>
+          <Text style={styles.errText}>{errText}</Text>
+        </View>
+      )}
 
       {/* Pickers */}
       <View style={styles.row}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex:1 }}>
           <Text style={styles.label}>ISD</Text>
-          <Pressable
-            style={styles.select}
-            onPress={() => setDistrictModal(true)}
-            hitSlop={8}
-          >
-            <Text style={styles.selectTxt}>
-              {selectedDistrict ?? "Select ISD"}
-            </Text>
+          <Pressable style={styles.select} onPress={() => setDistrictModal(true)} hitSlop={8}>
+            <Text style={styles.selectTxt}>{selectedDistrict ?? (loading ? "Loading…" : "Select ISD")}</Text>
           </Pressable>
         </View>
-        <View style={{ width: 12 }} />
-        <View style={{ flex: 1 }}>
+        <View style={{ width:12 }} />
+        <View style={{ flex:1 }}>
           <Text style={styles.label}>School</Text>
           <Pressable
             style={[styles.select, !selectedDistrict && styles.disabled]}
@@ -213,20 +229,14 @@ export default function WasteDiversion() {
             hitSlop={8}
           >
             <Text style={styles.selectTxt}>
-              {selectedSchool
-                ? selectedSchool
-                : selectedDistrict
-                ? "Select school"
-                : "Pick an ISD first"}
+              {selectedDistrict ? (selectedSchool ?? "Select school") : "Pick an ISD first"}
             </Text>
           </Pressable>
         </View>
       </View>
 
       {loading ? (
-        <View style={{ paddingVertical: 40 }}>
-          <ActivityIndicator />
-        </View>
+        <View style={{ paddingVertical: 40 }}><ActivityIndicator /></View>
       ) : schoolRows.length === 0 ? (
         <Text style={styles.muted}>No records for this selection.</Text>
       ) : (
@@ -252,7 +262,7 @@ export default function WasteDiversion() {
             </ScrollView>
           </View>
 
-          {/* Monthly bars list (with pretty month labels) */}
+          {/* Monthly bars */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Monthly Diverted (lbs)</Text>
             <FlatList
@@ -264,17 +274,11 @@ export default function WasteDiversion() {
                 const pct = Math.min((item.diverted / maxDiverted) * 100, 100);
                 return (
                   <View style={styles.barRow}>
-                    <Text style={styles.barLabel}>
-                      {formatMonthLabel(item.key)}
-                    </Text>
+                    <Text style={styles.barLabel}>{formatMonthLabel(item.key)}</Text>
                     <View style={styles.barTrack}>
-                      <View
-                        style={[styles.barDiverted, { width: `${pct}%` }]}
-                      />
+                      <View style={[styles.barDiverted, { width: `${pct}%` }]} />
                     </View>
-                    <Text style={styles.barVal}>
-                      {Math.round(item.diverted).toLocaleString()}
-                    </Text>
+                    <Text style={styles.barVal}>{Math.round(item.diverted).toLocaleString()}</Text>
                   </View>
                 );
               }}
@@ -291,19 +295,15 @@ export default function WasteDiversion() {
             <FlatList
               data={districts}
               keyExtractor={(d) => d}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <Pressable
                   style={styles.modalItem}
                   onPress={() => {
                     setSelectedDistrict(item);
-                    // compute first school for THIS district immediately (avoid state race)
                     const set = new Set<string>();
-                    rows.forEach((r) => {
-                      if (r.DISTRICT === item && r.SCHOOL) set.add(r.SCHOOL);
-                    });
-                    const first =
-                      Array.from(set).sort((a, b) => a.localeCompare(b))[0] ??
-                      null;
+                    rows.forEach(r => { if (r.DISTRICT === item && r.SCHOOL) set.add(r.SCHOOL); });
+                    const first = Array.from(set).sort((a,b)=>a.localeCompare(b))[0] ?? null;
                     setSelectedSchool(first);
                     setDistrictModal(false);
                   }}
@@ -312,10 +312,7 @@ export default function WasteDiversion() {
                 </Pressable>
               )}
             />
-            <Pressable
-              style={styles.modalClose}
-              onPress={() => setDistrictModal(false)}
-            >
+            <Pressable style={styles.modalClose} onPress={() => setDistrictModal(false)}>
               <Text style={styles.modalCloseTxt}>Close</Text>
             </Pressable>
           </View>
@@ -325,10 +322,7 @@ export default function WasteDiversion() {
       {/* School modal */}
       <Modal visible={schoolModal} transparent animationType="slide">
         <View style={styles.modalWrap}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ width: "100%" }}
-          >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Select School</Text>
               <TextInput
@@ -340,9 +334,7 @@ export default function WasteDiversion() {
                 returnKeyType="done"
               />
               <FlatList
-                data={schoolsInDistrict.filter((s) =>
-                  s.toLowerCase().includes(schoolSearch.toLowerCase())
-                )}
+                data={schoolsInDistrict.filter((s) => s.toLowerCase().includes(schoolSearch.toLowerCase()))}
                 keyExtractor={(s) => s}
                 keyboardShouldPersistTaps="handled"
                 renderItem={({ item }) => (
@@ -357,10 +349,7 @@ export default function WasteDiversion() {
                   </Pressable>
                 )}
               />
-              <Pressable
-                style={styles.modalClose}
-                onPress={() => setSchoolModal(false)}
-              >
+              <Pressable style={styles.modalClose} onPress={() => setSchoolModal(false)}>
                 <Text style={styles.modalCloseTxt}>Close</Text>
               </Pressable>
             </View>
@@ -389,107 +378,43 @@ const COLORS = {
   diverted: "#10B981",
   track: "#E5E7EB",
   mono: "#334155",
+  errBorder: "#DC2626",
+  errBg: "#FEE2E2",
+  errText: "#B91C1C",
 };
 
 const styles = StyleSheet.create({
   container: { padding: 24, gap: 14, backgroundColor: "#fff" },
-  // (title/subtitle removed — header handles this)
   mono: { fontFamily: "monospace", color: COLORS.mono },
   row: { flexDirection: "row", alignItems: "flex-end" },
   label: { fontWeight: "700", color: COLORS.text, marginBottom: 6 },
   select: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#fff",
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 14, backgroundColor: "#fff",
   },
   selectTxt: { color: COLORS.text },
   disabled: { opacity: 0.5 },
-  kpiRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-    flexWrap: "wrap",
-  },
-  kpi: {
-    minWidth: 150,
-    flexGrow: 1,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-  },
+  kpiRow: { flexDirection: "row", gap: 12, marginTop: 8, flexWrap: "wrap" },
+  kpi: { minWidth: 150, flexGrow: 1, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14 },
   kpiLabel: { color: COLORS.muted, fontSize: 12, marginBottom: 6 },
   kpiValue: { fontSize: 18, fontWeight: "800", color: COLORS.text },
-  card: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-  },
+  card: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, marginTop: 8 },
   cardTitle: { fontWeight: "800", color: COLORS.text, marginBottom: 10, fontSize: 16 },
   muted: { color: COLORS.muted },
-  barRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    gap: 8,
-  },
+  barRow: { flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 },
   barLabel: { width: 100, color: COLORS.text, fontVariant: ["tabular-nums"] },
-  barTrack: {
-    flex: 1,
-    height: 12,
-    backgroundColor: COLORS.track,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
+  barTrack: { flex: 1, height: 12, backgroundColor: COLORS.track, borderRadius: 999, overflow: "hidden" },
   barDiverted: { height: "100%", backgroundColor: COLORS.diverted },
-  barVal: {
-    width: 90,
-    textAlign: "right",
-    color: COLORS.text,
-    fontVariant: ["tabular-nums"],
-  },
-  modalWrap: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    maxHeight: "75%",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    gap: 8,
-  },
+  barVal: { width: 90, textAlign: "right", color: COLORS.text, fontVariant: ["tabular-nums"] },
+  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end" },
+  modalCard: { maxHeight: "75%", backgroundColor: "#fff", padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16, gap: 8 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: COLORS.text, marginBottom: 6 },
-  modalItem: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
+  modalItem: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
   modalTxt: { color: COLORS.text, fontSize: 16 },
-  modalClose: {
-    marginTop: 8,
-    alignSelf: "center",
-    backgroundColor: COLORS.brand,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+  modalClose: { marginTop: 8, alignSelf: "center", backgroundColor: COLORS.brand, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
   modalCloseTxt: { color: "#fff", fontWeight: "700" },
-  search: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
+  search: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8 },
+  errBox: { borderWidth: 1, borderColor: COLORS.errBorder, backgroundColor: COLORS.errBg, padding: 10, borderRadius: 8 },
+  errTitle: { color: COLORS.errText, fontWeight: "800", marginBottom: 4 },
+  errText: { color: COLORS.errText },
 });
