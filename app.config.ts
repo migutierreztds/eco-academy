@@ -1,15 +1,11 @@
 // app.config.ts
-import 'dotenv/config';
-import { ExpoConfig } from '@expo/config-types';
+import type { ExpoConfig } from 'expo';
 
 const config: ExpoConfig = {
   name: 'Eco Academy',
   slug: 'eco-academy',
-  // ...other config...
-  extra: {
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-  },
+  scheme: 'ecoacademy', // removes that linking warning
+  // You can add more later (icon, splash, ios/android, etc.)
 };
 
 export default config;

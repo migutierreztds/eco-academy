@@ -8,10 +8,15 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#0B5CCC",
-        tabBarInactiveTintColor: "#6B7280",
-        tabBarStyle: { height: 64, paddingBottom: 10, paddingTop: 8 },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+        tabBarActiveTintColor: "#2e7d32", // Eco Academy green
+        tabBarInactiveTintColor: "#9e9e9e",
+        tabBarStyle: {
+          backgroundColor: "#ffffff",
+          borderTopWidth: 1,
+          borderTopColor: "#e0e0e0",
+          height: 60,
+          paddingBottom: 6,
+        },
       }}
     >
       <Tabs.Screen
@@ -28,7 +33,7 @@ export default function TabsLayout() {
         options={{
           title: "Waste Diversion",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" color={color} size={size} />
+            <Ionicons name="leaf" color={color} size={size} />
           ),
         }}
       />
