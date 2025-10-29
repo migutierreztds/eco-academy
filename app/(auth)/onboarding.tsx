@@ -41,7 +41,7 @@ export default function Onboarding() {
 
   // data
   const [districts, setDistricts] = useState<DistrictRow[]>([]);
-  const [schools, setSchools] = useState<SchoolRow[]>([]); // schools for selected district
+const [schools, setSchools] = useState<SchoolRow[]>([]);
 
   // ui
   const [saving, setSaving] = useState(false);
@@ -89,7 +89,7 @@ export default function Onboarding() {
     };
   }, []);
 
-  // When district changes, load its schools
+  // When district changes, load its schools and clear any stale school selection
   useEffect(() => {
     let cancelled = false;
     if (!districtId) {
@@ -114,8 +114,8 @@ export default function Onboarding() {
 
         setSchools(rows);
 
-        // if we already had a school selected from a previous district, clear it
-        if (!rows.find((s) => s.id === schoolId)) {
+        // if previously-selected school doesn't belong to this district, clear it
+        if (schoolId && !rows.find((s) => s.id === schoolId)) {
           setSchoolId(null);
           setSchoolName(null);
         }
@@ -140,13 +140,18 @@ export default function Onboarding() {
       const user = u?.user;
       if (!user) throw new Error("Not signed in.");
 
-      // Persist NAMES to match your existing profiles schema
+      // ✅ Persist BOTH relational IDs and legacy display names
       const payload = {
         id: user.id,
         role,
-        district: districtName,        // text
-        school: schoolName ?? null,   // text or null
-        green_leaders: false,         // can add a toggle later
+        // relational (new, used by GLN + filters)
+        district_id: districtId,         // uuid
+        school_id: schoolId,             // uuid or null
+        // legacy display text (optional, keep for backwards compatibility)
+        district: districtName,          // text
+        school: schoolName ?? null,      // text or null
+        // misc
+        green_leaders: false,
       };
 
       const { error: upErr } = await supabase

@@ -64,6 +64,13 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="green-leaders"
+        options={{
+          title: "Green Leaders",
+          tabBarIcon: ({ color }) => <Ionicons name="leaf-outline" color={color} size={22} />,
+        }}
+      />
     </Tabs>
   );
 }
