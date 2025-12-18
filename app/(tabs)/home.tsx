@@ -38,6 +38,7 @@ export default function HomeScreen() {
   const [impactData, setImpactData] = useState<MonthDatum[]>([]);
   const [impactLoading, setImpactLoading] = useState(false);
   const [userSchool, setUserSchool] = useState<string | null>(null);
+  const [studentCount, setStudentCount] = useState<number>(0);
 
   // City Pulse State
   const [cityStats, setCityStats] = useState<{ date: string; diverted: number } | null>(null);
@@ -132,6 +133,9 @@ export default function HomeScreen() {
         return { key, recycle, compost, diverted: recycle + compost };
       });
 
+      const maxEnrollment = Math.max(0, ...schoolRecords.map((r: any) => Number(r.ENROLLMENT || 0)));
+      setStudentCount(maxEnrollment);
+
       setImpactData(processed);
     } catch (e) {
       console.log("Error fetching impact data:", e);
@@ -216,9 +220,17 @@ export default function HomeScreen() {
 
             <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 20, marginTop: 4, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 16 }}>
               <View>
-                <Text style={styles.chartStatLabel}>Total Diverted (Last 6mo)</Text>
+                <Text style={styles.chartStatLabel}>Total Diverted</Text>
                 <Text style={styles.chartStatValue}>
                   {impactData.reduce((acc, curr) => acc + curr.diverted, 0).toLocaleString()} lbs
+                </Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.chartStatLabel}>Avg Lbs/Student</Text>
+                <Text style={styles.chartStatValue}>
+                  {(studentCount > 0
+                    ? (impactData.reduce((acc, curr) => acc + curr.diverted, 0) / studentCount).toFixed(1)
+                    : "0.0")}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
