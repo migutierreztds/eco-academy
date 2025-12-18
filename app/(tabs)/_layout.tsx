@@ -1,9 +1,32 @@
 // app/(tabs)/_layout.tsx
-import React from "react";
-import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import { Tabs, Slot, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useWindowDimensions, View, StyleSheet } from "react-native";
+import SideNavigation from "../../components/SideNavigation";
 
 export default function TabsLayout() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+  const nav = useNavigation();
+
+  // We no longer need to toggle the parent header. 
+  // The sidebar layout handles navigation, and individual screens handle their own titles.
+  useEffect(() => {
+    nav.setOptions({ headerShown: false });
+  }, [nav]);
+
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopContainer}>
+        <SideNavigation />
+        <View style={styles.contentContainer}>
+          <Slot />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -74,3 +97,15 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  desktopContainer: {
+    flex: 1,
+    flexDirection: "row",
+    height: "100%",
+  },
+  contentContainer: {
+    flex: 1,
+    height: "100%",
+  },
+});

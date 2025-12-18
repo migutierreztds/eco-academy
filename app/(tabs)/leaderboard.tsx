@@ -27,7 +27,10 @@ type LeaderboardEntry = {
 // ------------------------------------------------------------------
 // COMPONENT
 // ------------------------------------------------------------------
-export default function GreenLeaders() {
+// ------------------------------------------------------------------
+// COMPONENT
+// ------------------------------------------------------------------
+export default function LeaderboardScreen() {
   const nav = useNavigation();
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -36,7 +39,7 @@ export default function GreenLeaders() {
   // Dynamic Header
   useEffect(() => {
     nav.setOptions?.({
-      header: () => <AppHeader title="Green Leaders" subtitle="Top Performing Schools" />,
+      header: () => <AppHeader title="Leaderboard" subtitle="Top Performing Schools" />,
     });
   }, [nav]);
 

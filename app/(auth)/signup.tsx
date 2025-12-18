@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { supabase } from "~/lib/supabase";
@@ -21,7 +22,6 @@ const logo = require("../../assets/icon.png");
 export default function SignUp() {
   const router = useRouter();
 
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -48,18 +48,21 @@ export default function SignUp() {
     }
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: fullName ? { full_name: fullName } : undefined,
-          // Optional: add emailRedirectTo to handle deep link confirmation
-          // emailRedirectTo: Linking.createURL("/(auth)/callback"),
-        },
+        // We defer profile creation (name, etc.) to the onboarding flow
       });
       if (error) throw error;
-      // Take them to a simple “check your email” screen
-      router.replace("/(auth)/verify-email");
+
+      if (data?.session) {
+        // Session created immediately (auto-confirm enabled or dev mode)
+        // Go straight to onboarding wizard
+        router.replace("/(auth)/onboarding");
+      } else {
+        // Confirmation email sent
+        router.replace("/(auth)/verify-email");
+      }
     } catch (err: any) {
       Alert.alert("Sign up failed", err?.message ?? "Please try again.");
     } finally {
@@ -78,18 +81,7 @@ export default function SignUp() {
 
         {/* Title */}
         <Text style={styles.heading}>Create your account</Text>
-
-        {/* Full Name (optional) */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Full name <Text style={styles.muted}>(optional)</Text></Text>
-          <TextInput
-            placeholder="Your name"
-            style={styles.input}
-            value={fullName}
-            onChangeText={setFullName}
-            returnKeyType="next"
-          />
-        </View>
+        <Text style={styles.subHeading}>Step 1 of 2: Secure your login</Text>
 
         {/* Email */}
         <View style={styles.field}>
@@ -172,7 +164,11 @@ export default function SignUp() {
           disabled={!canSubmit}
           style={[styles.primaryBtn, (!canSubmit || loading) && styles.btnDisabled]}
         >
-          <Text style={styles.primaryBtnTxt}>{loading ? "Creating account…" : "Create account"}</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryBtnTxt}>Continue →</Text>
+          )}
         </Pressable>
 
         {/* Already have an account? */}
@@ -218,12 +214,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   heading: {
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 28,
+    lineHeight: 34,
     fontWeight: "800",
     color: COLORS.text,
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  subHeading: {
+    fontSize: 16,
+    color: COLORS.muted,
+    textAlign: "center",
+    marginBottom: 16,
   },
   field: { gap: 8 },
   label: { fontSize: 15, fontWeight: "700", color: COLORS.label },
@@ -270,5 +272,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   muted: { color: COLORS.muted, fontSize: 14 },
+  signupLink: { color: COLORS.link, fontSize: 16, fontWeight: "700" },
   link: { color: COLORS.link, fontSize: 14, fontWeight: "700" },
 });

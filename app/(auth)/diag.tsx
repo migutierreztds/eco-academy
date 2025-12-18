@@ -25,7 +25,7 @@ export default function Diag() {
       add("Testing profiles select (own row) …");
       const { data: prof, error: selErr } = await supabase
         .from("profiles")
-        .select("id, role, district, school")
+        .select("id, role, district, school, first_name, last_name, handle, green_leaders")
         .eq("id", userRes.user.id)
         .maybeSingle();
       if (selErr) throw new Error(`profiles.select: ${selErr.message}`);

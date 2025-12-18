@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
 import { supabase } from "~/lib/supabase";
 
@@ -31,10 +32,8 @@ type Profile = {
   school: string | null;
   green_leaders: boolean | null;
   created_at?: string | null;
+  handle: string | null;
 };
-
-type DistrictRow = { id: string; name: string };
-type SchoolRow = { id: string; district_id: string; name: string; number?: string | null };
 
 // ────────────────────────────────────────────────
 // Helpers
@@ -102,24 +101,30 @@ export default function Account() {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [editName, setEditName] = useState<string>("");
-  const [editDistrictId, setEditDistrictId] = useState<string | null>(null);
-  const [editDistrictName, setEditDistrictName] = useState<string | null>(null);
-  const [editSchoolId, setEditSchoolId] = useState<string | null>(null);
-  const [editSchoolName, setEditSchoolName] = useState<string | null>(null);
+  const [editHandle, setEditHandle] = useState<string>("");
+  const [editDistrict, setEditDistrict] = useState<string | null>(null);
+  const [editSchool, setEditSchool] = useState<string | null>(null);
   const [editGreen, setEditGreen] = useState<boolean>(false);
 
-  const [districts, setDistricts] = useState<DistrictRow[]>([]);
-  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  // Data Sources (Strings)
+  const [allDistricts, setAllDistricts] = useState<string[]>([]);
+  // Mapping of District -> Schools[]
+  const [districtToSchools, setDistrictToSchools] = useState<Record<string, string[]>>({});
 
   const [districtModal, setDistrictModal] = useState(false);
   const [schoolModal, setSchoolModal] = useState(false);
-  const [districtSearch, setDistrictSearch] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Computed schools based on selected district
+  const availableSchools = useMemo(() => {
+    if (!editDistrict) return [];
+    return districtToSchools[editDistrict] || [];
+  }, [editDistrict, districtToSchools]);
 
   // Header
   useEffect(() => {
@@ -147,9 +152,9 @@ export default function Account() {
         />
       ),
     });
-  }, [nav, email, saving, userId, editName, editDistrictId, editSchoolId, editGreen]);
+  }, [nav, email, saving, userId, editName, editDistrict, editSchool, editGreen]);
 
-  // Load user + profile
+  // Load user + profile + Reference Data
   useEffect(() => {
     (async () => {
       try {
@@ -169,7 +174,7 @@ export default function Account() {
 
         const { data: p, error: pErr } = await supabase
           .from("profiles")
-          .select("id, role, district, school, green_leaders, created_at")
+          .select("id, role, district, school, green_leaders, created_at, handle")
           .eq("id", user.id)
           .maybeSingle();
         if (pErr) throw pErr;
@@ -177,37 +182,34 @@ export default function Account() {
         setProfile(prof);
 
         setEditName(metaName ?? "");
-        setEditDistrictName(prof?.district ?? null);
-        setEditSchoolName(prof?.school ?? null);
+        setEditHandle(prof?.handle ?? "");
+        setEditDistrict(prof?.district ?? null);
+        setEditSchool(prof?.school ?? null);
         setEditGreen(!!prof?.green_leaders);
 
-        // districts
-        const { data: d, error: dErr } = await supabase
-          .from("districts")
-          .select("id, name")
-          .order("name", { ascending: true });
-        if (dErr) throw dErr;
-        setDistricts((d ?? []) as DistrictRow[]);
+        // Fetch Reference Data from waste_diversion_records (Dynamic)
+        // We select distinct districts and schools
+        const { data: records, error: rErr } = await supabase
+          .from("waste_diversion_records")
+          .select("DISTRICT, SCHOOL");
 
-        // district id
-        const foundDistrict = prof?.district
-          ? (d ?? []).find(
-              (row) =>
-                row.name.toLowerCase() === prof.district!.toLowerCase()
-            )
-          : null;
-        const newDistrictId = foundDistrict?.id ?? null;
-        setEditDistrictId(newDistrictId);
+        if (rErr) throw rErr;
 
-        // load schools if needed
-        if (newDistrictId) {
-          const { data: s } = await supabase
-            .from("schools")
-            .select("id, district_id, name, number")
-            .eq("district_id", newDistrictId)
-            .order("name");
-          setSchools((s ?? []) as SchoolRow[]);
-        }
+        const dMap: Record<string, Set<string>> = {};
+        records?.forEach((r: any) => {
+          if (!r.DISTRICT) return;
+          if (!dMap[r.DISTRICT]) dMap[r.DISTRICT] = new Set();
+          if (r.SCHOOL) dMap[r.DISTRICT].add(r.SCHOOL);
+        });
+
+        const dists = Object.keys(dMap).sort();
+        const finalMap: Record<string, string[]> = {};
+        dists.forEach(d => {
+          finalMap[d] = Array.from(dMap[d]).sort();
+        });
+
+        setAllDistricts(dists);
+        setDistrictToSchools(finalMap);
 
         // avatar signed URL
         const signed = await getSignedAvatarUrl(user.id);
@@ -221,23 +223,6 @@ export default function Account() {
     })();
   }, []);
 
-  // Load schools when district changes
-  useEffect(() => {
-    (async () => {
-      if (!editDistrictId) {
-        setSchools([]);
-        setEditSchoolId(null);
-        setEditSchoolName(null);
-        return;
-      }
-      const { data, error } = await supabase
-        .from("schools")
-        .select("id, district_id, name, number")
-        .eq("district_id", editDistrictId)
-        .order("name", { ascending: true });
-      if (!error) setSchools((data ?? []) as SchoolRow[]);
-    })();
-  }, [editDistrictId]);
 
   // ────────────────────────────────────────────────
   // Avatar Picker / Upload
@@ -290,12 +275,22 @@ export default function Account() {
     if (!userId) return;
     try {
       setSaving(true);
+
+      // Split name for profiles table
+      const parts = (editName ?? "").trim().split(" ");
+      const firstName = parts[0] ?? "";
+      const lastName = parts.slice(1).join(" ") ?? "";
+
       const payload = {
         id: userId,
-        district: editDistrictName,
-        school: editSchoolName,
+        district: editDistrict,
+        school: editSchool,
         green_leaders: !!editGreen,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        handle: editHandle || null
       };
+
       const { error: pErr } = await supabase
         .from("profiles")
         .update(payload)
@@ -306,7 +301,7 @@ export default function Account() {
         const { error: uErr } = await supabase.auth.updateUser({
           data: { full_name: editName || null, name: editName || null },
         });
-        if (uErr) throw uErr;
+        // if (uErr) throw uErr; // Metadata update is secondary, don't block
         setName(editName || null);
       }
 
@@ -328,89 +323,196 @@ export default function Account() {
   // Render
   // ────────────────────────────────────────────────
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Header / Avatar */}
-      <View style={styles.cardRow}>
-        <View style={{ alignItems: "center" }}>
-          <Pressable onPress={pickAndUploadAvatar} disabled={uploading}>
-            <View style={styles.avatarWrap}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
-              ) : (
-                <Text style={{ color: "#64748B" }}>
-                  {uploading ? "..." : "Pick\nAvatar"}
-                </Text>
-              )}
-            </View>
-          </Pressable>
-          <Text style={styles.avatarHint}>
-            {uploading ? "Uploading…" : "Tap to change"}
-          </Text>
-        </View>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Header / Avatar */}
+        <View style={styles.cardRow}>
+          <View style={{ alignItems: "center" }}>
+            <Pressable onPress={pickAndUploadAvatar} disabled={uploading}>
+              <View style={styles.avatarWrap}>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+                ) : (
+                  <Text style={{ color: "#64748B" }}>
+                    {uploading ? "..." : "Pick\nAvatar"}
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+            <Text style={styles.avatarHint}>
+              {uploading ? "Uploading…" : "Tap to change"}
+            </Text>
+          </View>
 
-        <View style={{ flex: 1 }}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            value={editName}
-            onChangeText={setEditName}
-            placeholder="Your name"
-            style={styles.input}
-            autoCapitalize="words"
-          />
-          <View style={{ height: 6 }} />
-          <Text style={styles.label}>Role</Text>
-          <View
-            style={[styles.badge, { backgroundColor: badgeColor(profile?.role) }]}
-          >
-            <Text style={styles.badgeTxt}>{roleLabel(profile?.role)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your name"
+              style={styles.input}
+              autoCapitalize="words"
+            />
+            <View style={{ height: 6 }} />
+            <Text style={styles.label}>Handle</Text>
+            <TextInput
+              value={editHandle}
+              onChangeText={setEditHandle}
+              placeholder="@username"
+              style={styles.input}
+              autoCapitalize="none"
+            />
+
+            <View style={{ height: 6 }} />
+            <Text style={styles.label}>Role</Text>
+            <View
+              style={[styles.badge, { backgroundColor: badgeColor(profile?.role) }]}
+            >
+              <Text style={styles.badgeTxt}>{roleLabel(profile?.role)}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <Row label="Email">
-        <View style={styles.valueBox}>
-          <Text style={styles.value}>{email ?? "—"}</Text>
-        </View>
-      </Row>
+        <Row label="Email">
+          <View style={styles.valueBox}>
+            <Text style={styles.value}>{email ?? "—"}</Text>
+          </View>
+        </Row>
 
-      <Row label="District">
-        <Pressable style={styles.select} onPress={() => setDistrictModal(true)}>
-          <Text style={styles.selectTxt}>
-            {editDistrictName ?? "Select district"}
-          </Text>
-        </Pressable>
-      </Row>
+        <Row label="District">
+          <Pressable style={styles.select} onPress={() => setDistrictModal(true)}>
+            <Text style={styles.selectTxt}>
+              {editDistrict ?? "Select district"}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+          </Pressable>
+        </Row>
 
-      <Row label="School">
+        <Row label="School">
+          <Pressable
+            style={[styles.select, !editDistrict && styles.disabled]}
+            onPress={() => editDistrict && setSchoolModal(true)}
+          >
+            <Text style={styles.selectTxt}>
+              {editDistrict
+                ? editSchool ?? "Select school"
+                : "Pick a district first"}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+          </Pressable>
+        </Row>
+
+        <Row label="Green Leaders Network">
+          <View style={styles.inline}>
+            <Switch value={editGreen} onValueChange={setEditGreen} />
+            <Text style={{ color: "#6B7280", marginLeft: 8 }}>
+              Receive program updates & opportunities
+            </Text>
+          </View>
+        </Row>
+
+        <Row label="Member Since">
+          <View style={styles.valueBox}>
+            <Text style={styles.value}>{memberSince}</Text>
+          </View>
+        </Row>
+
+        <View style={{ height: 24 }} />
+
+        {/* Bottom Save Button */}
         <Pressable
-          style={[styles.select, !editDistrictId && styles.disabled]}
-          onPress={() => editDistrictId && setSchoolModal(true)}
+          style={[styles.bigSaveBtn, (saving || !userId) && { opacity: 0.7 }]}
+          onPress={handleSave}
+          disabled={saving || !userId}
         >
-          <Text style={styles.selectTxt}>
-            {editDistrictId
-              ? editSchoolName ?? "Select school"
-              : "Pick a district first"}
-          </Text>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.bigSaveTxt}>Save Changes</Text>}
         </Pressable>
-      </Row>
 
-      <Row label="Green Leaders Network">
-        <View style={styles.inline}>
-          <Switch value={editGreen} onValueChange={setEditGreen} />
-          <Text style={{ color: "#6B7280", marginLeft: 8 }}>
-            Receive program updates & opportunities
-          </Text>
-        </View>
-      </Row>
+        <View style={{ height: 40 }} />
+      </ScrollView>
 
-      <Row label="Member Since">
-        <View style={styles.valueBox}>
-          <Text style={styles.value}>{memberSince}</Text>
-        </View>
-      </Row>
+      {/* ────────────────── MODALS ────────────────── */}
 
-      <View style={{ height: 24 }} />
-    </ScrollView>
+      {/* District Modal - Centered Dialog */}
+      <Modal visible={districtModal} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setDistrictModal(false)}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select District</Text>
+              <Pressable onPress={() => setDistrictModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#CBD5E1" />
+              </Pressable>
+            </View>
+            <FlatList
+              data={allDistricts}
+              keyExtractor={(d) => d}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[styles.modalOption, item === editDistrict && styles.modalOptionSelected]}
+                  onPress={() => {
+                    setEditDistrict(item);
+                    setEditSchool(null); // Reset school
+                    setDistrictModal(false);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, item === editDistrict && styles.modalOptionTextSelected]}>
+                    {item}
+                  </Text>
+                  {item === editDistrict && <Ionicons name="checkmark" size={20} color="#2e7d32" />}
+                </Pressable>
+              )}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* School Modal - Centered Dialog */}
+      <Modal visible={schoolModal} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setSchoolModal(false)}>
+          <View style={[styles.modalContent, styles.modalContentLarge]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select School</Text>
+              <Pressable onPress={() => setSchoolModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#CBD5E1" />
+              </Pressable>
+            </View>
+
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={20} color="#94A3B8" />
+              <TextInput
+                placeholder="Find your school..."
+                value={schoolSearch}
+                onChangeText={setSchoolSearch}
+                style={styles.searchInput}
+                autoCapitalize="none"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+
+            <FlatList
+              data={availableSchools.filter((s) => s.toLowerCase().includes(schoolSearch.toLowerCase()))}
+              keyExtractor={(s) => s}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[styles.modalOption, item === editSchool && styles.modalOptionSelected]}
+                  onPress={() => {
+                    setEditSchool(item);
+                    setSchoolModal(false);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, item === editSchool && styles.modalOptionTextSelected]}>
+                    {item}
+                  </Text>
+                  {item === editSchool && <Ionicons name="checkmark" size={20} color="#2e7d32" />}
+                </Pressable>
+              )}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+    </View>
   );
 }
 
@@ -482,6 +584,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     backgroundColor: "#fff",
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center"
   },
   selectTxt: { color: COLORS.text },
   disabled: { opacity: 0.5 },
@@ -501,4 +604,55 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   badgeTxt: { color: "#fff", fontWeight: "700" },
+  bigSaveBtn: {
+    backgroundColor: COLORS.brand,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 12,
+    ...Platform.select({ web: { cursor: 'pointer' } })
+  },
+  bigSaveTxt: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+
+  // Modal Styles - Centered Dialog
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20
+  },
+  keyboardView: { width: "100%" },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    paddingBottom: 24,
+    maxHeight: "70%",
+    width: "100%",
+    maxWidth: 500,
+    shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }
+  },
+  modalContentLarge: { maxHeight: "80%" },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
+
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "#F8FAFC", paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: "#E2E8F0"
+  },
+  searchInput: { flex: 1, fontSize: 16, color: "#0F172A" },
+
+  modalOption: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#F1F5F9"
+  },
+  modalOptionSelected: { backgroundColor: "#F0FDF4", marginHorizontal: -24, paddingHorizontal: 24 },
+  modalOptionText: { fontSize: 16, fontWeight: "500", color: "#334155" },
+  modalOptionTextSelected: { fontWeight: "700", color: "#15803D" },
 });

@@ -36,11 +36,13 @@ function niceMax(n: number) {
 export function StackedBarChart({
   data,
   height = 200,
+  width,   // <--- new prop
   barGap = 12,
   padding = 24,
 }: {
   data: MonthDatum[];
   height?: number;
+  width?: number; // <--- type
   barGap?: number;
   padding?: number;
 }) {
@@ -48,11 +50,24 @@ export function StackedBarChart({
   const totals = data.map((d) => d.recycle + d.compost);
   const maxY = niceMax(Math.max(...totals, 1));
 
-  const W = Math.max(240, data.length * 36 + padding * 2); // auto width per bar
+  // Use provided width or auto-calc based on data length
+  const W = width ?? Math.max(240, data.length * 36 + padding * 2);
   const H = height;
   const chartW = W - padding * 2;
   const chartH = H - padding * 2;
-  const barWidth = data.length > 0 ? (chartW - (data.length - 1) * barGap) / data.length : 0;
+
+  // Guard against 0 width if data is empty or width is somehow 0
+  const safeChartW = Math.max(1, chartW);
+  const barWidth = data.length > 0 ? (safeChartW - (data.length - 1) * barGap) / data.length : 0;
+  // If we only have 1 bar and wide chart, cap the bar width so it's not huge
+  const finalBarWidth = Math.min(barWidth, 60);
+  // Center the bars if we capped width? 
+  // To keep it simple, let's just use the calculated width but maybe add side padding logic if bars are too thin?
+  // Actually, for "visual excellence", a single huge bar looks bad.
+  // Let's settle for: if `width` is passed, we distribute bars evenly.
+
+  // Re-calc x position to center if we capped width? 
+  // Let's stick to standard distribution for now to avoid complexity, but use the provided width.
 
   return (
     <View style={{ backgroundColor: "#fff" }}>
@@ -77,6 +92,13 @@ export function StackedBarChart({
             const totalH = (total / maxY) * chartH;
             const recycleH = (d.recycle / maxY) * chartH;
             const compostH = (d.compost / maxY) * chartH;
+
+            // If we want to center the bars when there are few:
+            // logic with finalBarWidth = Math.min(barWidth, 80)
+            // const totalContentW = data.length * finalBarWidth + (data.length - 1) * barGap
+            // const startX = (chartW - totalContentW) / 2
+            // const x = startX + i * (finalBarWidth + barGap)
+            // But let's just do standard stretch for now as implied by original code structure.
             const x = i * (barWidth + barGap);
             const yBase = chartH - totalH;
             return (
@@ -125,17 +147,19 @@ export function StackedBarChart({
 export function LineChart({
   data,
   height = 180,
+  width,
   padding = 24,
 }: {
   data: MonthDatum[];
   height?: number;
+  width?: number; // <---
   padding?: number;
 }) {
   const labels = data.map((d) => formatMonthLabel(d.key));
   const values = data.map((d) => d.diverted);
   const maxY = niceMax(Math.max(...values, 1));
 
-  const W = Math.max(240, data.length * 36 + padding * 2);
+  const W = width ?? Math.max(240, data.length * 36 + padding * 2);
   const H = height;
   const chartW = W - padding * 2;
   const chartH = H - padding * 2;
@@ -171,6 +195,16 @@ export function LineChart({
               strokeLinecap="round"
             />
           )}
+          {/* single point dot if length is 1 */}
+          {points.length === 1 && (
+            <React.Fragment>
+              <Line x1={0} y1={chartH / 2} x2={chartW} y2={chartH / 2} stroke={GRID_COLOR} strokeDasharray="4,4" />
+              <G>
+                <Rect x={chartW / 2 - 4} y={(chartH - (values[0] / maxY) * chartH) - 4} width={8} height={8} fill={LINE_COLOR} rx={4} />
+              </G>
+            </React.Fragment>
+          )}
+
           {/* x labels */}
           {labels.map((lab, i) => {
             const x = (i / Math.max(data.length - 1, 1)) * chartW;

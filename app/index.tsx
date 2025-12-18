@@ -3,6 +3,7 @@ import React from "react";
 import { Redirect } from "expo-router";
 
 export default function Index() {
-  // ✅ IMPORTANT: include the segment "(tabs)" in the href
-  return <Redirect href="/(tabs)/waste-diversion" />;
+  // ✅ IMPORTANT: Redirect to Landing Page by default
+  // The Auth flow (Login/Signup) will redirect to (tabs)/home upon success.
+  return <Redirect href="/welcome" />;
 }
