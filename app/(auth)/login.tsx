@@ -231,11 +231,6 @@ export default function Login() {
             <Text style={styles.signupLink}>Sign up</Text>
           </Pressable>
         </View>
-
-        {/* Dev skip link */}
-        <Link href="(tabs)/waste-diversion" style={styles.skip}>
-          Skip for now →
-        </Link>
       </ScrollView>
     </KeyboardAvoidingView>
   );

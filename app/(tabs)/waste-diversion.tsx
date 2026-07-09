@@ -1,5 +1,5 @@
 // app/(tabs)/waste-diversion.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
@@ -55,9 +55,14 @@ type Row = {
 export default function WasteDiversion() {
   const nav = useNavigation();
 
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);          // initial districts load
+  const [rowsLoading, setRowsLoading] = useState(false); // per-school data load
   const [errText, setErrText] = useState<string | null>(null);
+
+  // data (scoped — we never pull the whole table anymore)
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [schoolsInDistrict, setSchoolsInDistrict] = useState<string[]>([]);
+  const [schoolRows, setSchoolRows] = useState<Row[]>([]);
 
   // UI state
   const [districtModal, setDistrictModal] = useState(false);
@@ -67,6 +72,10 @@ export default function WasteDiversion() {
   // selections
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+
+  // remember the profile's preferred district/school so we can preselect them once
+  const profilePrefs = useRef<{ district?: string; school?: string }>({});
+  const appliedProfileSchool = useRef(false);
 
   // dynamic header subtitle
   const headerSubtitle = useMemo(() => {
@@ -81,7 +90,8 @@ export default function WasteDiversion() {
     });
   }, [nav, headerSubtitle]);
 
-  // --------- load data + preselect ----------
+  // 1) On mount: load the district list (lightweight view) + profile prefs, then
+  //    preselect a district. We do NOT pull the whole records table.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -89,61 +99,27 @@ export default function WasteDiversion() {
         setErrText(null);
         setLoading(true);
 
-        // 1) read profile
-        let profileDistrict: string | undefined;
-        let profileSchool: string | undefined;
         try {
-          const prefs = await getProfileDistrictSchool();
-          profileDistrict = prefs.district;
-          profileSchool = prefs.school ?? undefined;
+          profilePrefs.current = await getProfileDistrictSchool();
         } catch (e: any) {
           console.warn("profile read warning:", e?.message ?? e);
         }
 
-        // 2) read diversion rows from Table (Uppercase Columns)
-        // We must quote columns in .select() if we wanted specific ones, but * works fine.
-        // The returned keys will be UPPERCASE now: 'DISTRICT', 'SCHOOL', etc.
         const { data, error } = await supabase
-          .from("waste_diversion_records")
-          .select("*")
-          .order("DISTRICT", { ascending: true })
-          .order("SCHOOL", { ascending: true })
-          .order("YEAR", { ascending: true })
-          .order("MONTH", { ascending: true });
-
-        if (error) {
-          throw new Error(`waste_diversion_records select: ${error.message}`);
-        }
-
-        const r = (data ?? []) as any[]; // cast to any temporarily to map
+          .from("view_districts_dropdown")
+          .select("name")
+          .order("name", { ascending: true });
+        if (error) throw new Error(`districts: ${error.message}`);
         if (cancelled) return;
 
-        // Force map keys to what our logic expects OR just update logic to use Uppercase.
-        // Let's update logic to use Uppercase keys to be consistent with DB.
-        setRows(r);
+        const dists = (data ?? []).map((d: any) => d.name).filter(Boolean) as string[];
+        setDistricts(dists);
 
-        // distinct districts
-        const dists = Array.from(new Set(r.map(x => x.DISTRICT).filter(Boolean))).sort((a: any, b: any) => a.localeCompare(b));
-
-        // choose district
-        const chosenDistrict = profileDistrict && dists.includes(profileDistrict)
-          ? profileDistrict
-          : dists[0] ?? null;
-
-        // choose school
-        let chosenSchool: string | null = null;
-        if (chosenDistrict) {
-          const schools = Array.from(
-            new Set(r.filter(x => x.DISTRICT === chosenDistrict).map(x => x.SCHOOL).filter(Boolean))
-          ).sort((a: any, b: any) => a.localeCompare(b));
-          chosenSchool = profileSchool && schools.includes(profileSchool) ? profileSchool : (schools[0] ?? null);
-        }
-
-        setSelectedDistrict(chosenDistrict);
-        setSelectedSchool(chosenSchool);
+        const pd = profilePrefs.current.district;
+        setSelectedDistrict(pd && dists.includes(pd) ? pd : (dists[0] ?? null));
       } catch (e: any) {
         console.error(e);
-        setErrText(e?.message ?? "Failed to load diversion data.");
+        setErrText(e?.message ?? "Failed to load districts.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -151,25 +127,70 @@ export default function WasteDiversion() {
     return () => { cancelled = true; };
   }, []);
 
-  // --------- derived collections ----------
-  const districts = useMemo(() => {
-    const s = new Set<string>();
-    rows.forEach((r) => r.DISTRICT && s.add(r.DISTRICT));
-    return [...s].sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  // 2) When the district changes: load its schools (from the view) and preselect one.
+  useEffect(() => {
+    if (!selectedDistrict) { setSchoolsInDistrict([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        setErrText(null);
+        const { data, error } = await supabase
+          .from("view_schools_dropdown")
+          .select("name")
+          .eq("district", selectedDistrict)
+          .order("name", { ascending: true });
+        if (error) throw new Error(`schools: ${error.message}`);
+        if (cancelled) return;
 
-  const schoolsInDistrict = useMemo(() => {
-    if (!selectedDistrict) return [];
-    const s = new Set<string>();
-    rows.forEach((r) => { if (r.DISTRICT === selectedDistrict) s.add(r.SCHOOL); });
-    return [...s].sort((a, b) => a.localeCompare(b));
-  }, [rows, selectedDistrict]);
+        const schools = (data ?? []).map((s: any) => s.name).filter(Boolean) as string[];
+        setSchoolsInDistrict(schools);
 
-  const schoolRows = useMemo(() => {
-    if (!selectedDistrict || !selectedSchool) return [];
-    return rows.filter((r) => r.DISTRICT === selectedDistrict && r.SCHOOL === selectedSchool);
-  }, [rows, selectedDistrict, selectedSchool]);
+        // Use the profile's school only for the very first render; after that,
+        // switching district just picks that district's first school.
+        const ps = profilePrefs.current.school;
+        const chosen = (!appliedProfileSchool.current && ps && schools.includes(ps))
+          ? ps
+          : (schools[0] ?? null);
+        appliedProfileSchool.current = true;
+        setSelectedSchool(chosen);
+      } catch (e: any) {
+        console.error(e);
+        setErrText(e?.message ?? "Failed to load schools.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedDistrict]);
 
+  // 3) When a school is selected: load ONLY that school's monthly records (tiny result).
+  useEffect(() => {
+    if (!selectedDistrict || !selectedSchool) { setSchoolRows([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        setRowsLoading(true);
+        setErrText(null);
+        const { data, error } = await supabase
+          .from("waste_diversion_records")
+          .select("*")
+          .eq("DISTRICT", selectedDistrict)
+          .eq("SCHOOL", selectedSchool)
+          .order("YEAR", { ascending: true })
+          .order("MONTH", { ascending: true });
+        if (error) throw new Error(`waste_diversion_records: ${error.message}`);
+        if (cancelled) return;
+        setSchoolRows((data ?? []) as Row[]);
+      } catch (e: any) {
+        console.error(e);
+        setErrText(e?.message ?? "Failed to load diversion data.");
+        setSchoolRows([]);
+      } finally {
+        if (!cancelled) setRowsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedDistrict, selectedSchool]);
+
+  // --------- derived metrics (operate on the selected school's rows) ----------
   const enrollment = useMemo(() => {
     if (schoolRows.length === 0) return 0;
     // Find the latest year/month in the dataset
@@ -275,7 +296,7 @@ export default function WasteDiversion() {
           </View>
         </View>
 
-        {loading ? (
+        {(loading || rowsLoading) ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#2e7d32" />
             <Text style={styles.loadingText}>Crunching the numbers...</Text>
@@ -395,11 +416,7 @@ export default function WasteDiversion() {
                   style={[styles.modalOption, item === selectedDistrict && styles.modalOptionSelected]}
                   onPress={() => {
                     setSelectedDistrict(item);
-                    // Standardize filtered selection logic
-                    const set = new Set<string>();
-                    rows.forEach(r => { if (r.DISTRICT === item && r.SCHOOL) set.add(r.SCHOOL); });
-                    const first = Array.from(set).sort((a: any, b: any) => a.localeCompare(b))[0] ?? null;
-                    setSelectedSchool(first);
+                    setSelectedSchool(null); // effect #2 loads this district's schools and picks the first
                     setDistrictModal(false);
                   }}
                 >

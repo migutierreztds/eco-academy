@@ -8,16 +8,18 @@ export default function SideNavigation() {
     const router = useRouter();
     const pathname = usePathname();
 
+    // MVP navigation: the waste-diversion lookup is the focus. Other tabs are
+    // built but hidden until they're ready — uncomment to bring them back.
     const tabs = [
         { name: 'home', title: 'Home', icon: 'home', route: '/(tabs)/home' },
-        { name: 'news', title: 'News', icon: 'newspaper', route: '/(tabs)/news' },
         { name: 'waste-diversion', title: 'Waste Diversion', icon: 'leaf', route: '/(tabs)/waste-diversion' },
-        { name: 'calendar', title: 'Calendar', icon: 'calendar', route: '/(tabs)/calendar' },
-        { name: 'resources', title: 'Resources', icon: 'book', route: '/(tabs)/resources' },
-        { name: 'learning', title: 'Learning', icon: 'school', route: '/(tabs)/learning' },
         { name: 'account', title: 'Account', icon: 'person-circle', route: '/(tabs)/account' },
-        { name: 'leaderboard', title: 'Leaderboard', icon: 'trophy-outline', route: '/(tabs)/leaderboard' },
-        { name: 'green-leaders', title: 'Green Leaders', icon: 'leaf-outline', route: '/(tabs)/green-leaders' },
+        // { name: 'news', title: 'News', icon: 'newspaper', route: '/(tabs)/news' },
+        // { name: 'calendar', title: 'Calendar', icon: 'calendar', route: '/(tabs)/calendar' },
+        // { name: 'resources', title: 'Resources', icon: 'book', route: '/(tabs)/resources' },
+        // { name: 'learning', title: 'Learning', icon: 'school', route: '/(tabs)/learning' },
+        // { name: 'leaderboard', title: 'Leaderboard', icon: 'trophy-outline', route: '/(tabs)/leaderboard' },
+        // { name: 'green-leaders', title: 'Green Leaders', icon: 'leaf-outline', route: '/(tabs)/green-leaders' },
     ];
 
     const onSignOut = async () => {

@@ -42,6 +42,7 @@ export default function TabsLayout() {
         },
       }}
     >
+      {/* --- MVP tabs --- */}
       <Tabs.Screen
         name="home"
         options={{
@@ -61,24 +62,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="resources"
-        options={{
-          title: "Resources",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="learning"
-        options={{
-          title: "Learning",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="school" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="account"
         options={{
           title: "Account",
@@ -87,13 +70,14 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="green-leaders"
-        options={{
-          title: "Green Leaders",
-          tabBarIcon: ({ color }) => <Ionicons name="leaf-outline" color={color} size={22} />,
-        }}
-      />
+
+      {/* --- built but hidden until post-MVP (href: null keeps them off the tab bar) --- */}
+      <Tabs.Screen name="resources" options={{ href: null }} />
+      <Tabs.Screen name="learning" options={{ href: null }} />
+      <Tabs.Screen name="green-leaders" options={{ href: null }} />
+      <Tabs.Screen name="news" options={{ href: null }} />
+      <Tabs.Screen name="calendar" options={{ href: null }} />
+      <Tabs.Screen name="leaderboard" options={{ href: null }} />
     </Tabs>
   );
 }
