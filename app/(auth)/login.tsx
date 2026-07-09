@@ -19,6 +19,17 @@ import { supabase } from "~/lib/supabase";
 // ✅ Static import so Metro validates the path at build time
 const logo = require("../../assets/icon.png");
 
+// District/school accounts log in with a username (e.g. "austin", "valor north").
+// We map it to the synthetic email those accounts were created with. Anything
+// already containing "@" (e.g. a staff/super-admin email) is used as-is.
+const AUTH_DOMAIN = "ecoacademy.local";
+function toLoginEmail(input: string): string {
+  const v = input.trim();
+  if (v.includes("@")) return v.toLowerCase();
+  const norm = v.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return `${norm}@${AUTH_DOMAIN}`;
+}
+
 export default function Login() {
   const router = useRouter();
   const navState = useRootNavigationState(); // ← wait for root to mount before navigating
@@ -36,8 +47,9 @@ export default function Login() {
   const goToWasteDiversion = () => {
     // On native, navigating before the Root Layout mounts throws.
     if (!navState?.key) return;
-    // Use segment path so web shows /waste-diversion but native resolves correctly.
-    router.replace("(tabs)/home");
+    // Land on the scoped Waste Diversion dashboard (district/school accounts have
+    // no personal "home" impact; this is their actual tool).
+    router.replace("(tabs)/waste-diversion");
   };
 
   // Auto-redirect if already logged in
@@ -73,11 +85,11 @@ export default function Login() {
 
     try {
       setLoading(true);
-      const trimmedEmail = email.trim();
-      console.log("➡️ Attempting sign-in with:", trimmedEmail);
+      const loginEmail = toLoginEmail(email);
+      console.log("➡️ Attempting sign-in with:", loginEmail);
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
+        email: loginEmail,
         password,
       });
 
@@ -157,17 +169,16 @@ export default function Login() {
         {/* Title */}
         <Text style={styles.heading}>Sign in</Text>
 
-        {/* Email */}
+        {/* Email or username */}
         <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email or username</Text>
           <TextInput
-            placeholder="Enter your email"
+            placeholder="e.g. austin, or your email"
             style={styles.input}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
+            keyboardType="default"
+            autoComplete="username"
             nativeID="email"
             value={email}
             onChangeText={setEmail}
