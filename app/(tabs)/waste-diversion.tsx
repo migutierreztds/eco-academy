@@ -89,6 +89,7 @@ export default function WasteDiversion() {
   const [districtModal, setDistrictModal] = useState(false);
   const [schoolModal, setSchoolModal] = useState(false);
   const [schoolSearch, setSchoolSearch] = useState("");
+  const [range, setRange] = useState<"1Y" | "2Y" | "ALL">("2Y");
 
   // selections
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
@@ -253,7 +254,14 @@ export default function WasteDiversion() {
       .map(([key, v]) => ({ key, ...v }));
   }, [schoolRows]);
 
-  const maxDiverted = useMemo(() => Math.max(1, ...monthly.map(m => m.diverted)), [monthly]);
+  // The chart + monthly list show a window (default last 2 years) so the most
+  // recent months are always visible; the KPIs/scale card above stay all-time.
+  const visibleMonths = useMemo(() => {
+    if (range === "ALL") return monthly;
+    return monthly.slice(range === "1Y" ? -12 : -24);
+  }, [monthly, range]);
+
+  const maxDiverted = useMemo(() => Math.max(1, ...visibleMonths.map(m => m.diverted)), [visibleMonths]);
 
   const kpis = useMemo(() => {
     const totalRecycle = monthly.reduce((s, r) => s + r.recycle, 0);
@@ -263,7 +271,7 @@ export default function WasteDiversion() {
     return { totalRecycle, totalCompost, totalDiverted, perStudent, enrollment };
   }, [monthly, enrollment]);
 
-  const chartData = monthly;
+  const chartData = visibleMonths;
 
   // --------- UI ----------
   return (
@@ -369,8 +377,23 @@ export default function WasteDiversion() {
             {/* 3. Charts Section */}
             <View style={styles.chartCard}>
               <View style={styles.cardHeader}>
-                <Ionicons name="bar-chart" size={20} color="#0B2A4A" />
-                <Text style={styles.cardTitle}>Diversion Trends</Text>
+                <View style={styles.cardHeaderLeft}>
+                  <Ionicons name="bar-chart" size={20} color="#0B2A4A" />
+                  <Text style={styles.cardTitle}>Diversion Trends</Text>
+                </View>
+                <View style={styles.rangeRow}>
+                  {(["1Y", "2Y", "ALL"] as const).map((r) => (
+                    <Pressable
+                      key={r}
+                      onPress={() => setRange(r)}
+                      style={[styles.rangeBtn, range === r && styles.rangeBtnActive]}
+                    >
+                      <Text style={[styles.rangeText, range === r && styles.rangeTextActive]}>
+                        {r === "ALL" ? "All" : r}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScroll}>
                 <View style={styles.chartWrapper}>
@@ -384,7 +407,7 @@ export default function WasteDiversion() {
               <Text style={styles.sectionTitle}>Monthly Breakdown</Text>
               <View style={styles.listCard}>
                 <FlatList
-                  data={monthly}
+                  data={visibleMonths}
                   keyExtractor={(it) => it.key}
                   scrollEnabled={false}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -607,8 +630,16 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "#F1F5F9",
     shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 16 },
+  cardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardTitle: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
+
+  // Time-range toggle (1Y / 2Y / All)
+  rangeRow: { flexDirection: "row", gap: 6 },
+  rangeBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F1F5F9" },
+  rangeBtnActive: { backgroundColor: "#0F172A" },
+  rangeText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  rangeTextActive: { color: "#fff" },
   chartScroll: { paddingVertical: 8 },
   chartWrapper: { minWidth: 280 },
 

@@ -38,6 +38,7 @@ export default function HomeScreen() {
   const [impactData, setImpactData] = useState<MonthDatum[]>([]);
   const [impactLoading, setImpactLoading] = useState(false);
   const [userSchool, setUserSchool] = useState<string | null>(null);
+  const [userDistrict, setUserDistrict] = useState<string | null>(null);
   const [studentCount, setStudentCount] = useState<number>(0);
 
   // City Pulse State
@@ -103,6 +104,7 @@ export default function HomeScreen() {
         .eq("id", user.id)
         .maybeSingle();
 
+      setUserDistrict(profile?.district ?? null);
       if (!profile?.school || !profile?.district) {
         setImpactLoading(false);
         return;
@@ -192,7 +194,7 @@ export default function HomeScreen() {
       <View style={styles.welcomeCard}>
         <View style={styles.welcomeText}>
           <Text style={styles.h1}>Hello there! 👋</Text>
-          <Text style={styles.p}>Here's what's happening at <Text style={{ fontWeight: '700', color: '#2e7d32' }}>{userSchool || "your school"}</Text> today.</Text>
+          <Text style={styles.p}>Here's what's happening at <Text style={{ fontWeight: '700', color: '#2e7d32' }}>{userSchool || userDistrict || "your account"}</Text> today.</Text>
         </View>
       </View>
 
@@ -243,10 +245,21 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No impact data found for your school yet.</Text>
-            <Pressable onPress={() => router.push("/(tabs)/account")} style={{ marginTop: 12 }}>
-              <Text style={{ color: "#2e7d32", fontWeight: "600" }}>Check your Account Settings →</Text>
-            </Pressable>
+            {userDistrict ? (
+              <>
+                <Text style={styles.emptyText}>You're viewing {userDistrict}. Open Waste Diversion to explore your schools' numbers.</Text>
+                <Pressable onPress={() => router.push("/(tabs)/waste-diversion")} style={{ marginTop: 12 }}>
+                  <Text style={{ color: "#2e7d32", fontWeight: "600" }}>Go to Waste Diversion →</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyText}>No impact data found for your school yet.</Text>
+                <Pressable onPress={() => router.push("/(tabs)/account")} style={{ marginTop: 12 }}>
+                  <Text style={{ color: "#2e7d32", fontWeight: "600" }}>Check your Account Settings →</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         )}
       </View>

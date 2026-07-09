@@ -235,13 +235,7 @@ export default function Login() {
           {loading ? <ActivityIndicator /> : <Text style={styles.primaryBtnTxt}>Sign in</Text>}
         </Pressable>
 
-        {/* Sign Up */}
-        <View style={styles.signupRow}>
-          <Text style={styles.muted}>Don’t have an account? </Text>
-          <Pressable onPress={signUp}>
-            <Text style={styles.signupLink}>Sign up</Text>
-          </Pressable>
-        </View>
+        {/* District/school accounts are provisioned centrally — no self sign-up. */}
       </ScrollView>
     </KeyboardAvoidingView>
   );
