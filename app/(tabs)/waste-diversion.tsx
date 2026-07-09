@@ -44,6 +44,27 @@ async function getProfileDistrictSchool(): Promise<{ district?: string; school?:
   return { district: prof?.district ?? undefined, school: prof?.school ?? undefined };
 }
 
+// --------- "diversion in perspective" scale helpers ----------
+type ScaleObject = { emoji: string; label: string; weight: number };
+const SCALE_OBJECTS: ScaleObject[] = [
+  { emoji: "🐕", label: "golden retrievers", weight: 70 },
+  { emoji: "🚗", label: "cars", weight: 4000 },
+  { emoji: "🐘", label: "African elephants", weight: 12000 },
+  { emoji: "🚛", label: "garbage truckloads", weight: 18000 },
+  { emoji: "🚌", label: "school buses", weight: 26000 },
+  { emoji: "🐋", label: "blue whales", weight: 300000 },
+];
+// Pick the heaviest object that still yields a count of ~3+, so the number
+// always feels relatable (never "0.2 blue whales" or "18,000 dogs").
+function pickScale(lbs: number): { emoji: string; label: string; count: number } {
+  const asc = [...SCALE_OBJECTS].sort((a, b) => a.weight - b.weight);
+  let chosen = asc[0];
+  for (const o of asc) {
+    if (lbs / o.weight >= 3) chosen = o;
+  }
+  return { emoji: chosen.emoji, label: chosen.label, count: Math.max(1, Math.round(lbs / chosen.weight)) };
+}
+
 // --------- types ----------
 type Row = {
   MONTH: number; YEAR: number; DISTRICT: string; SCHOOL: string;
@@ -342,6 +363,9 @@ export default function WasteDiversion() {
               />
             </View>
 
+            {/* Diversion in perspective — relatable scale */}
+            <ScaleCard lbs={kpis.totalDiverted} />
+
             {/* 3. Charts Section */}
             <View style={styles.chartCard}>
               <View style={styles.cardHeader}>
@@ -486,6 +510,21 @@ export default function WasteDiversion() {
 
 // --------- COMPONENTS ----------
 
+function ScaleCard({ lbs }: { lbs: number }) {
+  if (!lbs || lbs <= 0) return null;
+  const { emoji, label, count } = pickScale(lbs);
+  return (
+    <View style={styles.scaleCard}>
+      <Text style={styles.scaleEmoji}>{emoji}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.scaleLabelSmall}>That's about the weight of</Text>
+        <Text style={styles.scaleCount}>{count.toLocaleString()} {label}</Text>
+        <Text style={styles.scaleSubtitle}>kept out of the landfill 🌎</Text>
+      </View>
+    </View>
+  );
+}
+
 function KPICard({ label, value, unit, icon, color, trend }: any) {
   return (
     <View style={styles.kpiCard}>
@@ -534,6 +573,17 @@ const styles = StyleSheet.create({
   filterText: { flex: 1, fontSize: 14, fontWeight: "600", color: "#0F172A" },
   filterTextActive: { color: "#fff" },
   filterTextDisabled: { color: "#94A3B8" },
+
+  // Scale ("diversion in perspective") card
+  scaleCard: {
+    flexDirection: "row", alignItems: "center", gap: 16,
+    backgroundColor: "#ECFDF5", borderRadius: 20, padding: 20, marginBottom: 24,
+    borderWidth: 1, borderColor: "#A7F3D0",
+  },
+  scaleEmoji: { fontSize: 44 },
+  scaleLabelSmall: { fontSize: 12, fontWeight: "600", color: "#047857" },
+  scaleCount: { fontSize: 22, fontWeight: "800", color: "#065F46", letterSpacing: -0.3, marginVertical: 2 },
+  scaleSubtitle: { fontSize: 13, color: "#059669", fontWeight: "500" },
 
   // KPI Grid
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 },
