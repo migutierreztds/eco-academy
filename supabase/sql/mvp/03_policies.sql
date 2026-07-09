@@ -12,6 +12,11 @@
 alter table public.waste_diversion_records enable row level security;
 alter table public.profiles                enable row level security;
 
+-- staging_waste is a temporary import zone. Enable RLS with NO policies so it is
+-- completely unreachable from the public API. The CSV import runs as the service
+-- role (SQL Editor), which bypasses RLS, so imports still work fine.
+alter table public.staging_waste enable row level security;
+
 -- ---- waste_diversion_records: read-only for authenticated users -------------
 drop policy if exists "waste read (authenticated)" on public.waste_diversion_records;
 create policy "waste read (authenticated)"
