@@ -67,13 +67,18 @@ create table if not exists public.profiles (
 --    Column names match the CSV headers exactly so the importer auto-maps them.
 --    Data is cleaned + moved into waste_diversion_records by 04_load_from_staging.sql
 -- ----------------------------------------------------------------------------
+-- All CSV columns are listed (including COMBINED / POUNDS/STUDENT) because the
+-- Supabase CSV importer requires every CSV header to have a matching column.
+-- The last two are ignored by the cleanup step — they exist only to satisfy the importer.
 create table if not exists public.staging_waste (
-  "MONTH"      text,
-  "YEAR"       text,
-  "DISTRICT"   text,
-  "NUMBER"     text,
-  "SCHOOL"     text,
-  "ENROLLMENT" text,
-  "RECYCLE"    text,
-  "COMPOST"    text
+  "MONTH"          text,
+  "YEAR"           text,
+  "DISTRICT"       text,
+  "NUMBER"         text,
+  "SCHOOL"         text,
+  "ENROLLMENT"     text,
+  "RECYCLE"        text,
+  "COMPOST"        text,
+  "COMBINED"       text,
+  "POUNDS/STUDENT" text
 );

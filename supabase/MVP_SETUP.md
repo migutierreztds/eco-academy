@@ -62,10 +62,10 @@ cleans it and moves it into the real table.
 1. **Table Editor** → open **`staging_waste`** → **Insert** ▾ → **Import data from CSV**.
 2. Upload:
    `~/Documents/Work/Eco Academy/Reports for Wordpress/Master-Green-School-Solutions-2026-6.csv`
-3. On the mapping screen, the 8 columns (`MONTH, YEAR, DISTRICT, NUMBER, SCHOOL,
-   ENROLLMENT, RECYCLE, COMPOST`) should auto-match. The extra CSV columns
-   `COMBINED` and `POUNDS/STUDENT` have no match — **leave them unmapped/skipped**.
-   Click **Import**. (~30k rows; give it a minute.)
+3. All 10 CSV columns auto-match the staging table (`staging_waste` includes
+   `COMBINED` and `POUNDS/STUDENT` purely to satisfy the importer — the importer
+   rejects the file if any CSV header has no matching column). Click **Import**.
+   (~30k rows; give it a minute.)
    - *If the browser importer struggles with the full file, see "Big-file fallback" below.*
 4. **SQL Editor** → new query → paste `supabase/sql/mvp/04_load_from_staging.sql` → **Run**.
 5. Read the result at the bottom. With the current master file you should see
