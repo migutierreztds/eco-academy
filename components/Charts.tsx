@@ -61,6 +61,11 @@ export function StackedBarChart({
   const barWidth = data.length > 0 ? (safeChartW - (data.length - 1) * barGap) / data.length : 0;
   // If we only have 1 bar and wide chart, cap the bar width so it's not huge
   const finalBarWidth = Math.min(barWidth, 60);
+
+  // Draw only as many x-axis labels as fit without overlapping. A "Mon YYYY"
+  // label is ~52px wide; if bars sit closer than that, skip labels in between
+  // (e.g. show every 3rd month on a multi-year chart) so they never collide.
+  const labelStep = Math.max(1, Math.ceil(52 / (barWidth + barGap)));
   // Center the bars if we capped width? 
   // To keep it simple, let's just use the calculated width but maybe add side padding logic if bars are too thin?
   // Actually, for "visual excellence", a single huge bar looks bad.
@@ -121,10 +126,12 @@ export function StackedBarChart({
                   fill={RECYCLE_COLOR}
                   opacity={0.9}
                 />
-                {/* label */}
-                <TextSvg x={x + barWidth / 2} y={chartH + 16} textAnchor="middle">
-                  {labels[i]}
-                </TextSvg>
+                {/* label (thinned to avoid overlap) */}
+                {i % labelStep === 0 && (
+                  <TextSvg x={x + barWidth / 2} y={chartH + 16} textAnchor="middle">
+                    {labels[i]}
+                  </TextSvg>
+                )}
               </G>
             );
           })}
@@ -170,6 +177,9 @@ export function LineChart({
     return `${x},${y}`;
   });
 
+  // Thin x-axis labels so "Mon YYYY" (~52px) labels never overlap.
+  const labelStep = Math.max(1, Math.ceil((52 * Math.max(data.length - 1, 1)) / Math.max(chartW, 1)));
+
   return (
     <View style={{ backgroundColor: "#fff" }}>
       <Svg width={W} height={H}>
@@ -207,6 +217,7 @@ export function LineChart({
 
           {/* x labels */}
           {labels.map((lab, i) => {
+            if (i % labelStep !== 0) return null;
             const x = (i / Math.max(data.length - 1, 1)) * chartW;
             return (
               <TextSvg key={i} x={x} y={chartH + 16} textAnchor="middle">
