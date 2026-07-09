@@ -1,12 +1,11 @@
-# Expo / React Native
+# Dependencies
 node_modules/
+
+# Expo / React Native
 .expo/
 .expo-shared/
 dist/
 web-build/
-
-# OS / system files
-.DS_Store
 
 # Env / private keys
 .env
@@ -14,18 +13,8 @@ web-build/
 .env.production
 .env.development
 
+# OS / system files
+.DS_Store
+
 # Backups / temp
 _root_backup/
-
-
-node_modules/
-.expo/
-.expo-shared/
-_root_backup/
-eco-academy/
-.DS_Store
-.env
-
-node_modules
-node_modules
-node_modules
