@@ -411,6 +411,7 @@ export default function WasteDiversion() {
             <FlatList
               data={districts}
               keyExtractor={(d) => d}
+              style={{ flexShrink: 1 }}
               renderItem={({ item }) => (
                 <Pressable
                   style={[styles.modalOption, item === selectedDistrict && styles.modalOptionSelected]}
@@ -457,6 +458,7 @@ export default function WasteDiversion() {
               <FlatList
                 data={schoolsInDistrict.filter((s) => s.toLowerCase().includes(schoolSearch.toLowerCase()))}
                 keyExtractor={(s) => s}
+                style={{ flexShrink: 1 }}
                 keyboardShouldPersistTaps="handled"
                 renderItem={({ item }) => (
                   <Pressable
@@ -599,7 +601,9 @@ const styles = StyleSheet.create({
 
   // Modals
   modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
-  keyboardView: { width: "100%" },
+  // flex:1 gives the sheet a definite full-height context so modalContent's
+  // maxHeight "%" resolves on web; justify flex-end keeps it anchored to the bottom.
+  keyboardView: { flex: 1, width: "100%", justifyContent: "flex-end" },
   modalContent: {
     backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 40, maxHeight: "60%",
