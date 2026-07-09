@@ -16,6 +16,7 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from "react-native";
 import { supabase } from "~/lib/supabase";
 import { StackedBarChart, LineChart } from "../../components/Charts";
@@ -31,6 +32,12 @@ function formatMonthLabel(key: string): string {
   const date = new Date(Number(y), Number(m) - 1);
   return date.toLocaleString("en-US", { month: "short", year: "numeric" });
 }
+// CSV cell: quote if it contains a comma, quote, or newline.
+function csvCell(v: any): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 async function getProfileDistrictSchool(): Promise<{ district?: string; school?: string }> {
   const { data: u } = await supabase.auth.getUser();
   const user = u?.user;
@@ -273,6 +280,30 @@ export default function WasteDiversion() {
 
   const chartData = visibleMonths;
 
+  // Most recent month with data (from the full history), for the freshness label.
+  const latestLabel = monthly.length ? formatMonthLabel(monthly[monthly.length - 1].key) : null;
+
+  // Export the selected school's full monthly history. Web downloads a file;
+  // native opens the share sheet with the CSV text.
+  const handleExport = () => {
+    if (!monthly.length) return;
+    const header = "District,School,Month,Year,Recycle (lbs),Compost (lbs),Diverted (lbs)";
+    const lines = monthly.map((m) =>
+      [selectedDistrict, selectedSchool, m.month, m.year, m.recycle, m.compost, m.diverted].map(csvCell).join(",")
+    );
+    const csv = [header, ...lines].join("\n");
+    const fname = `${(selectedSchool || selectedDistrict || "eco-academy").replace(/[^a-z0-9]+/gi, "_")}_diversion.csv`;
+    if (Platform.OS === "web") {
+      const g: any = globalThis;
+      const url = g.URL.createObjectURL(new g.Blob([csv], { type: "text/csv;charset=utf-8;" }));
+      const a = g.document.createElement("a");
+      a.href = url; a.download = fname; a.click();
+      g.URL.revokeObjectURL(url);
+    } else {
+      Share.share({ message: csv, title: fname });
+    }
+  };
+
   // --------- UI ----------
   return (
     <View style={styles.screen}>
@@ -338,6 +369,15 @@ export default function WasteDiversion() {
           </View>
         ) : (
           <>
+            {/* Freshness + export */}
+            <View style={styles.metaRow}>
+              {latestLabel ? <Text style={styles.freshness}>Data through {latestLabel}</Text> : <View />}
+              <Pressable style={styles.exportBtn} onPress={handleExport}>
+                <Ionicons name="download-outline" size={16} color="#0F172A" />
+                <Text style={styles.exportBtnText}>Download CSV</Text>
+              </Pressable>
+            </View>
+
             {/* 2. Key Performance Indicators (Grid) */}
             <View style={styles.kpiGrid}>
               <KPICard
@@ -607,6 +647,16 @@ const styles = StyleSheet.create({
   scaleLabelSmall: { fontSize: 12, fontWeight: "600", color: "#047857" },
   scaleCount: { fontSize: 22, fontWeight: "800", color: "#065F46", letterSpacing: -0.3, marginVertical: 2 },
   scaleSubtitle: { fontSize: 13, color: "#059669", fontWeight: "500" },
+
+  // Freshness label + export button row
+  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  freshness: { fontSize: 12, color: "#94A3B8", fontWeight: "600" },
+  exportBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0",
+    borderRadius: 100, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  exportBtnText: { fontSize: 13, fontWeight: "700", color: "#0F172A" },
 
   // KPI Grid
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 },

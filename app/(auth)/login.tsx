@@ -13,7 +13,7 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
-import { Link, useRouter, useRootNavigationState } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import { supabase } from "~/lib/supabase";
 
 // ✅ Static import so Metro validates the path at build time
@@ -38,6 +38,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showPwHelp, setShowPwHelp] = useState(false);
 
   const canSubmit = useMemo(
     () => email.trim().length > 0 && password.length > 0,
@@ -191,9 +192,9 @@ export default function Login() {
         <View style={styles.field}>
           <View style={styles.labelRow}>
             <Text style={styles.label}>Password</Text>
-            <Link href="/(auth)/forgot" style={styles.forgotLink}>
-              Forgot password?
-            </Link>
+            <Pressable onPress={() => setShowPwHelp((v) => !v)}>
+              <Text style={styles.forgotLink}>Forgot password?</Text>
+            </Pressable>
           </View>
           <View style={styles.passwordRow}>
             <TextInput
@@ -219,6 +220,12 @@ export default function Login() {
             </Pressable>
           </View>
         </View>
+
+        {showPwHelp && (
+          <Text style={styles.pwHelp}>
+            District logins are managed centrally — contact your Eco Academy administrator to reset your password.
+          </Text>
+        )}
 
         {/* Sign In */}
         <Pressable
@@ -284,6 +291,7 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   label: { fontSize: 15, fontWeight: "700", color: COLORS.label },
   forgotLink: { fontSize: 14, color: COLORS.link, fontWeight: "600" },
+  pwHelp: { fontSize: 13, color: COLORS.muted, marginTop: -4, marginBottom: 10, lineHeight: 18 },
   input: {
     backgroundColor: COLORS.inputBg,
     borderWidth: 1,

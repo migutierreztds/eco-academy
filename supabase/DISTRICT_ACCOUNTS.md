@@ -43,6 +43,14 @@ only in Supabase.
 | achieve | Charter → Austin Achieve Public School |
 | _migutierrez@texasdisposal.com_ | **super-admin** (all districts) |
 
+## Password resets
+
+District accounts use synthetic emails with no real inbox, so self-service email
+reset does NOT work. When a district loses its password, the super-admin resets it
+in Supabase → Authentication → Users → (select the account) → reset/change password,
+then shares the new one. The login screen's "Forgot password?" tells users to
+contact their administrator.
+
 ## Adding / changing accounts
 
 Create the auth user in Supabase (Dashboard → Authentication → Add user, with a
